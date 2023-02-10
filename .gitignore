@@ -30,6 +30,7 @@ yarn-error.log*
 
 # Test binary, built with `go test -c`
 *.test
+*.txt
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out

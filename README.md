@@ -4,6 +4,8 @@ This project is for separating a large file into smaller chunks.
 
 ## Usage
 
+Filesplit needs a file to split. 
+
 ```bash
 go build
 ./filesplit -h
@@ -29,5 +31,5 @@ Usage of ./filesplit:
 
 ```bash
 # will generate 1000000 numbers in input.txt with 1Mb buffer and 5 goroutine
-./generate -count 1000000 -file input.txt -buffer 1 -goroutine 5
+./filesplit -count 100 -file input.txt -buffer 1
 ```

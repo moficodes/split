@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
 	"strings"
@@ -32,7 +33,7 @@ func init() {
 	flag.Parse()
 }
 
-func split(count int, filename, filenamePrefix string) error {
+func split(count, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -44,17 +45,46 @@ func split(count int, filename, filenamePrefix string) error {
 		return err
 	}
 	fileSize := fi.Size()
-	chunkSize := fileSize / int64(count)
+	linesPerChunk := int((fileSize / 20) / int64(count))
+	chunkSize := linesPerChunk * 20
+	bufferSize := buffer * 1024 * 1024
+	if chunkSize < bufferSize {
+		bufferSize = chunkSize
+	}
 
 	for i := 0; i < count; i++ {
-		f.Seek(chunkSize*int64(i), 0)
-		buf := make([]byte, chunkSize)
+		f.Seek(int64(chunkSize*i), 0)
+		buf := make([]byte, bufferSize)
 		file, err := os.OpenFile(fmt.Sprintf("%s_%d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-		f.Read(buf)
-		file.Write(buf)
+		if i == count-1 {
+			for {
+				n, err := f.Read(buf)
+				if err != nil {
+					if err == io.EOF {
+						break
+					}
+					return err
+				}
+				file.Write(buf[:n])
+				buf = make([]byte, bufferSize)
+			}
+		} else {
+			readSoFar := 0
+
+			for readSoFar < int(chunkSize) {
+				n, err := f.Read(buf)
+				if err != nil {
+					return err
+				}
+				file.Write(buf[:n])
+				readSoFar += n
+				buf = make([]byte, bufferSize)
+			}
+		}
+
 		file.Close()
 	}
 
@@ -73,9 +103,12 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 		return err
 	}
 	fileSize := fi.Size()
-	chunkSize := fileSize / int64(count)
+	linesPerChunk := int((fileSize / 20) / int64(count))
+	chunkSize := linesPerChunk * 20
 	bufferSize := buffer * 1024 * 1024
-
+	if chunkSize < bufferSize {
+		bufferSize = chunkSize
+	}
 	errs, _ := errgroup.WithContext(ctx)
 
 	for i := 0; i < count; i++ {
@@ -89,18 +122,34 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 			if err != nil {
 				return nil
 			}
-			source.Seek(chunkSize*int64(i), 0)
-			readSoFar := 0
+			source.Seek(int64(chunkSize*i), 0)
+
 			buf := make([]byte, bufferSize)
-			for readSoFar < int(chunkSize) {
-				n, err := source.Read(buf)
-				if err != nil {
-					return err
+			if i == count-1 {
+				for {
+					n, err := source.Read(buf)
+					if err != nil {
+						if err == io.EOF {
+							break
+						}
+						return err
+					}
+					destination.Write(buf[:n])
+					buf = make([]byte, bufferSize)
 				}
-				destination.Write(buf[:n])
-				readSoFar += n
-				buf = make([]byte, bufferSize)
+			} else {
+				readSoFar := 0
+				for readSoFar < int(chunkSize) {
+					n, err := source.Read(buf)
+					if err != nil {
+						return err
+					}
+					destination.Write(buf[:n])
+					readSoFar += n
+					buf = make([]byte, bufferSize)
+				}
 			}
+
 			source.Close()
 			destination.Close()
 			return nil
@@ -144,7 +193,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	err := split(count, filename, filenamePrefix)
+	err := split(count, buffer, filename, filenamePrefix)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
