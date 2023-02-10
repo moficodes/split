@@ -14,14 +14,15 @@ import (
 )
 
 var (
-	filename  string
-	count     int
-	goroutine int
-	version   bool
-	ver       string
-	buffer    int
-	parallel  bool
-	VERSION   string = "v0.0.0"
+	filename   string
+	count      int
+	goroutine  int
+	version    bool
+	ver        string
+	buffer     int
+	parallel   bool
+	linelength int
+	VERSION    string = "v0.0.0"
 )
 
 func init() {
@@ -29,6 +30,7 @@ func init() {
 	flag.IntVar(&count, "count", 0, "split the file in these many files")
 	flag.BoolVar(&version, "version", false, "show version")
 	flag.IntVar(&buffer, "buffer", 1, "buffer size in MB")
+	flag.IntVar(&linelength, "linelength", 17, "length of each line (length of each number + 1 for newline)")
 	flag.BoolVar(&parallel, "parallel", false, "split the file in parallel (default false)")
 	flag.Parse()
 }
@@ -47,15 +49,15 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 	fileSize := fi.Size()
 	// each line is 20 bytes
 	// so we can calculate the number of lines per chunk
-	linesPerChunk := int((fileSize / 20) / int64(count))
-	// each chunk is 20 bytes per line
+	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
+	// each chunk is 17 bytes per line (16 digits + 1 newline)
 	// we need to do it this way to avoid any rounding errors
-	// for example if we have say 100 lines. that is 2000 bytes
-	// if we want to split it into 3 files. then each file should have 666 bytes
-	// 666 bytes does not divide in 20 bytes per line.
+	// for example if we have say 100 lines. that is 1700 bytes
+	// if we want to split it into 3 files. then each file should have 566 bytes
+	// 566 bytes does not divide in 17 bytes per line.
 	// instead if we calculate lines per chunk it comes to be 33
 	// then reach chunk size is 660 bytes exactly
-	chunkSize := linesPerChunk * 20
+	chunkSize := linesPerChunk * linelength
 	// buffer size is in MB
 	bufferSize := buffer * 1024 * 1024
 	if chunkSize < bufferSize {
@@ -116,8 +118,8 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 	}
 	fileSize := fi.Size()
 	// see logic in split function
-	linesPerChunk := int((fileSize / 20) / int64(count))
-	chunkSize := linesPerChunk * 20
+	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
+	chunkSize := linesPerChunk * linelength
 	bufferSize := buffer * 1024 * 1024
 	if chunkSize < bufferSize {
 		bufferSize = chunkSize
