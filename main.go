@@ -45,8 +45,18 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 		return err
 	}
 	fileSize := fi.Size()
+	// each line is 20 bytes
+	// so we can calculate the number of lines per chunk
 	linesPerChunk := int((fileSize / 20) / int64(count))
+	// each chunk is 20 bytes per line
+	// we need to do it this way to avoid any rounding errors
+	// for example if we have say 100 lines. that is 2000 bytes
+	// if we want to split it into 3 files. then each file should have 666 bytes
+	// 666 bytes does not divide in 20 bytes per line.
+	// instead if we calculate lines per chunk it comes to be 33
+	// then reach chunk size is 660 bytes exactly
 	chunkSize := linesPerChunk * 20
+	// buffer size is in MB
 	bufferSize := buffer * 1024 * 1024
 	if chunkSize < bufferSize {
 		bufferSize = chunkSize
@@ -59,6 +69,8 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 		if err != nil {
 			return err
 		}
+		// for the last chunk we want to write whatever we have left into the last file.
+		// this way no data is left.
 		if i == count-1 {
 			for {
 				n, err := f.Read(buf)
@@ -103,6 +115,7 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 		return err
 	}
 	fileSize := fi.Size()
+	// see logic in split function
 	linesPerChunk := int((fileSize / 20) / int64(count))
 	chunkSize := linesPerChunk * 20
 	bufferSize := buffer * 1024 * 1024
