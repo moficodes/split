@@ -67,7 +67,7 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 	for i := 0; i < count; i++ {
 		f.Seek(int64(chunkSize*i), 0)
 		buf := make([]byte, bufferSize)
-		file, err := os.OpenFile(fmt.Sprintf("%s_%d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
+		file, err := os.OpenFile(fmt.Sprintf("%s_%04d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
@@ -133,7 +133,7 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 			if err != nil {
 				return err
 			}
-			destination, err := os.OpenFile(fmt.Sprintf("%s_%d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
+			destination, err := os.OpenFile(fmt.Sprintf("%s_%04d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				return nil
 			}
@@ -207,10 +207,11 @@ func main() {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-	}
-	err := split(count, buffer, filename, filenamePrefix)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	} else {
+		err := split(count, buffer, filename, filenamePrefix)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	}
 }
