@@ -108,7 +108,7 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 	return nil
 }
 
-func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string, ctx context.Context) error {
+func splitParallel(ctx context.Context, count, goroutine, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -208,7 +208,7 @@ func main() {
 	defer duration("split", time.Now())
 
 	if parallel {
-		err := splitParallel(count, goroutine, buffer, filename, filenamePrefix, context.Background())
+		err := splitParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
