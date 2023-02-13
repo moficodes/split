@@ -8,7 +8,7 @@
 !Dockerfile
 !Makefile
 
-input.txt
+# input.txt no we need testdata/input.txt
 # misc
 .DS_Store
 .env
@@ -30,7 +30,7 @@ yarn-error.log*
 
 # Test binary, built with `go test -c`
 *.test
-*.txt
+#*.txt  no, we need testdata/*.txt
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out

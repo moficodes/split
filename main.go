@@ -32,10 +32,16 @@ func init() {
 	flag.IntVar(&buffer, "buffer", 1, "buffer size in MB")
 	flag.IntVar(&linelength, "linelength", 17, "length of each line (length of each number + 1 for newline)")
 	flag.BoolVar(&parallel, "parallel", false, "split the file in parallel (default false)")
-	flag.Parse()
+	flag.IntVar(&goroutine, "goroutine", runtime.GOMAXPROCS(-1), "number of concurrent workers")
 }
 
-func split(count, buffer int, filename, filenamePrefix string) error {
+func copyChunk(in io.Reader, out io.ReaderFrom, n int64) (int64, error) {
+	// ReaderFrom is a Writer that has the "Read from..." capability
+	part := io.LimitReader(in, n)
+	return out.ReadFrom(part)
+}
+
+func splitFile(count, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -47,7 +53,11 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 		return err
 	}
 	fileSize := fi.Size()
-	// each line is 20 bytes
+	return split(count, buffer, f, fileSize, filenamePrefix)
+}
+
+func split(count, bufferMB int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
+	// each line is 17 bytes
 	// so we can calculate the number of lines per chunk
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	// each chunk is 17 bytes per line (16 digits + 1 newline)
@@ -58,78 +68,55 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 	// instead if we calculate lines per chunk it comes to be 33
 	// then reach chunk size is 660 bytes exactly
 	chunkSize := linesPerChunk * linelength
-	// buffer size is in MB
-	bufferSize := buffer * 1024 * 1024
-	if chunkSize < bufferSize {
-		bufferSize = chunkSize
-	}
 
 	for i := 0; i < count; i++ {
-		f.Seek(int64(chunkSize*i), 0)
-		buf := make([]byte, bufferSize)
+		_, err := f.Seek(int64(chunkSize*i), io.SeekStart)
+		if err != nil {
+			return err
+		}
 		file, err := os.OpenFile(fmt.Sprintf("%s_%04d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-		// for the last chunk we want to write whatever we have left into the last file.
-		// this way no data is left.
-		if i == count-1 {
-			for {
-				n, err := f.Read(buf)
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					return err
-				}
-				file.Write(buf[:n])
-				buf = make([]byte, bufferSize)
-			}
-		} else {
-			readSoFar := 0
+		// TODO use bufio to take "bufferMB" into account
 
-			for readSoFar < int(chunkSize) {
-				n, err := f.Read(buf)
-				if err != nil {
-					return err
-				}
-				file.Write(buf[:n])
-				readSoFar += n
-				buf = make([]byte, bufferSize)
-			}
+		if i == count-1 {
+			// Write everything we have left
+			// The last file may be larger than the previous chunks!
+			_, err := file.ReadFrom(f)
+			return err
 		}
 
-		file.Close()
+		_, err = copyChunk(f, file, int64(chunkSize))
+		if err != nil {
+			return err
+		}
+
+		if err = file.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string, ctx context.Context) error {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	fi, err := f.Stat()
+func splitFileParallel(ctx context.Context, count, goroutine, bufferMB int, filename, filenamePrefix string) error {
+	fi, err := os.Stat(filename)
 	if err != nil {
 		return err
 	}
 	fileSize := fi.Size()
+
 	// see logic in split function
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	chunkSize := linesPerChunk * linelength
-	bufferSize := buffer * 1024 * 1024
-	if chunkSize < bufferSize {
-		bufferSize = chunkSize
-	}
 	errs, _ := errgroup.WithContext(ctx)
+	errs.SetLimit(goroutine)
 
 	for i := 0; i < count; i++ {
 		i := i
 		errs.Go(func() error {
-			source, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+			source, err := os.Open(filename)
 			if err != nil {
 				return err
 			}
@@ -137,38 +124,26 @@ func splitParallel(count, goroutine, buffer int, filename, filenamePrefix string
 			if err != nil {
 				return nil
 			}
-			source.Seek(int64(chunkSize*i), 0)
+			// TODO use bufio to take "bufferMB" into account
+			_, err = source.Seek(int64(chunkSize*i), io.SeekStart)
+			if err != nil {
+				return err
+			}
 
-			buf := make([]byte, bufferSize)
 			if i == count-1 {
-				for {
-					n, err := source.Read(buf)
-					if err != nil {
-						if err == io.EOF {
-							break
-						}
-						return err
-					}
-					destination.Write(buf[:n])
-					buf = make([]byte, bufferSize)
-				}
-			} else {
-				readSoFar := 0
-				for readSoFar < int(chunkSize) {
-					n, err := source.Read(buf)
-					if err != nil {
-						return err
-					}
-					destination.Write(buf[:n])
-					readSoFar += n
-					buf = make([]byte, bufferSize)
-				}
+				// Write everything we have left
+				// The last file may be larger than the previous chunks!
+				_, err := destination.ReadFrom(source)
+				return err
+			}
+
+			_, err = copyChunk(source, destination, int64(chunkSize))
+			if err != nil {
+				return err
 			}
 
 			source.Close()
-			destination.Close()
-			return nil
-
+			return destination.Close()
 		})
 	}
 	return errs.Wait()
@@ -179,39 +154,35 @@ func duration(msg string, start time.Time) {
 }
 
 func main() {
+	flag.Parse()
+
 	if version {
 		fmt.Println(ver)
 		os.Exit(0)
+	}
+
+	if count == 0 {
+		fmt.Fprintln(os.Stderr, "count is required")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	if goroutine > count {
 		goroutine = count
 	}
 
-	if count == 0 {
-		fmt.Println("count is required")
-		os.Exit(1)
-	}
-
-	if goroutine == 0 {
-		goroutine = runtime.GOMAXPROCS(-1)
-	}
-
 	filenamePrefix := strings.Split(filename, ".")[0]
 
 	defer duration("split", time.Now())
 
+	var err error
 	if parallel {
-		err := splitParallel(count, goroutine, buffer, filename, filenamePrefix, context.Background())
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		err = splitFileParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
 	} else {
-		err := split(count, buffer, filename, filenamePrefix)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		err = splitFile(count, buffer, filename, filenamePrefix)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
