@@ -111,6 +111,7 @@ func splitFileParallel(ctx context.Context, count, goroutine, bufferMB int, file
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	chunkSize := linesPerChunk * linelength
 	errs, _ := errgroup.WithContext(ctx)
+	errs.SetLimit(goroutine)
 
 	for i := 0; i < count; i++ {
 		i := i
