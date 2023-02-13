@@ -9,14 +9,26 @@ import (
 )
 
 func TestSplitFile(t *testing.T) {
+	// Input size 17000 is divisible by 4
 	testSplitFileFunc(t, "testdata/input.txt", func(outdir string) error {
 		return splitFile(4, 1, "testdata/input.txt", filepath.Join(outdir, "input"))
+	})
+
+	// Input size 17000 is not divisible by 9
+	testSplitFileFunc(t, "testdata/input_2MB.txt", func(outdir string) error {
+		return splitFile(7, 1, "testdata/input_2MB.txt", filepath.Join(outdir, "input_2MB"))
 	})
 }
 
 func TestSplitFileParallel(t *testing.T) {
+	// Input size 17000 is divisible by 4
 	testSplitFileFunc(t, "testdata/input.txt", func(outdir string) error {
 		return splitFileParallel(context.Background(), 4, 6, 1, "testdata/input.txt", filepath.Join(outdir, "input"))
+	})
+
+	// Input size 17000 is not divisible by 9
+	testSplitFileFunc(t, "testdata/input.txt", func(outdir string) error {
+		return splitFileParallel(context.Background(), 9, 6, 1, "testdata/input.txt", filepath.Join(outdir, "input"))
 	})
 }
 

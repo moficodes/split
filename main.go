@@ -35,6 +35,12 @@ func init() {
 	flag.IntVar(&goroutine, "goroutine", runtime.GOMAXPROCS(-1), "number of concurrent workers")
 }
 
+func copyChunk(in io.Reader, out io.ReaderFrom, n int64) (int64, error) {
+	// ReaderFrom is a Writer that has the "Read from..." capability
+	part := io.LimitReader(in, n)
+	return out.ReadFrom(part)
+}
+
 func splitFile(count, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
@@ -50,7 +56,7 @@ func splitFile(count, buffer int, filename, filenamePrefix string) error {
 	return split(count, buffer, f, fileSize, filenamePrefix)
 }
 
-func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
+func split(count, bufferMB int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
 	// each line is 17 bytes
 	// so we can calculate the number of lines per chunk
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
@@ -62,46 +68,27 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 	// instead if we calculate lines per chunk it comes to be 33
 	// then reach chunk size is 660 bytes exactly
 	chunkSize := linesPerChunk * linelength
-	// buffer size is in MB
-	bufferSize := buffer * 1024 * 1024
-	if chunkSize < bufferSize {
-		bufferSize = chunkSize
-	}
 
 	for i := 0; i < count; i++ {
 		f.Seek(int64(chunkSize*i), 0)
-		buf := make([]byte, bufferSize)
 		file, err := os.OpenFile(fmt.Sprintf("%s_%04d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
 		}
-		// for the last chunk we want to write whatever we have left into the last file.
-		// this way no data is left.
+		// TODO use bufio to take "bufferMB" into account
+
 		if i == count-1 {
-			for {
-				n, err := f.Read(buf)
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					return err
-				}
-				file.Write(buf[:n])
-				buf = make([]byte, bufferSize)
-			}
-			return file.Close()
+			// Write everything we have left
+			// The last file may be larger than the previous chunks!
+			_, err := file.ReadFrom(f)
+			return err
 		}
 
-		readSoFar := 0
-		for readSoFar < int(chunkSize) {
-			n, err := f.Read(buf)
-			if err != nil {
-				return err
-			}
-			file.Write(buf[:n])
-			readSoFar += n
-			buf = make([]byte, bufferSize)
+		_, err = copyChunk(f, file, int64(chunkSize))
+		if err != nil {
+			return err
 		}
+
 		if err = file.Close(); err != nil {
 			return err
 		}
@@ -110,7 +97,7 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 	return nil
 }
 
-func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filename, filenamePrefix string) error {
+func splitFileParallel(ctx context.Context, count, goroutine, bufferMB int, filename, filenamePrefix string) error {
 	fi, err := os.Stat(filename)
 	if err != nil {
 		return err
@@ -120,10 +107,6 @@ func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filena
 	// see logic in split function
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	chunkSize := linesPerChunk * linelength
-	bufferSize := buffer * 1024 * 1024
-	if chunkSize < bufferSize {
-		bufferSize = chunkSize
-	}
 	errs, _ := errgroup.WithContext(ctx)
 
 	for i := 0; i < count; i++ {
@@ -137,32 +120,19 @@ func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filena
 			if err != nil {
 				return nil
 			}
+			// TODO use bufio to take "bufferMB" into account
 			source.Seek(int64(chunkSize*i), 0)
 
-			buf := make([]byte, bufferSize)
 			if i == count-1 {
-				for {
-					n, err := source.Read(buf)
-					if err != nil {
-						if err == io.EOF {
-							break
-						}
-						return err
-					}
-					destination.Write(buf[:n])
-					buf = make([]byte, bufferSize)
-				}
-			} else {
-				readSoFar := 0
-				for readSoFar < int(chunkSize) {
-					n, err := source.Read(buf)
-					if err != nil {
-						return err
-					}
-					destination.Write(buf[:n])
-					readSoFar += n
-					buf = make([]byte, bufferSize)
-				}
+				// Write everything we have left
+				// The last file may be larger than the previous chunks!
+				_, err := destination.ReadFrom(source)
+				return err
+			}
+
+			_, err = copyChunk(source, destination, int64(chunkSize))
+			if err != nil {
+				return err
 			}
 
 			source.Close()
