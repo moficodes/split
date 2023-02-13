@@ -46,7 +46,7 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 		return err
 	}
 	fileSize := fi.Size()
-	// each line is 20 bytes
+	// each line is 17 bytes
 	// so we can calculate the number of lines per chunk
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	// each chunk is 17 bytes per line (16 digits + 1 newline)
