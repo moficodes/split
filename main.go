@@ -70,7 +70,7 @@ func split(count, bufferMB int, f io.ReadSeeker, fileSize int64, filenamePrefix 
 	chunkSize := linesPerChunk * linelength
 
 	for i := 0; i < count; i++ {
-		_, err := f.Seek(int64(chunkSize*i), 0)
+		_, err := f.Seek(int64(chunkSize*i), io.SeekStart)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func splitFileParallel(ctx context.Context, count, goroutine, bufferMB int, file
 				return nil
 			}
 			// TODO use bufio to take "bufferMB" into account
-			_, err = source.Seek(int64(chunkSize*i), 0)
+			_, err = source.Seek(int64(chunkSize*i), io.SeekStart)
 			if err != nil {
 				return err
 			}
