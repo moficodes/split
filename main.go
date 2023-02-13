@@ -204,17 +204,14 @@ func main() {
 
 	defer duration("split", time.Now())
 
+	var err error
 	if parallel {
-		err := splitParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+		err = splitParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
 	} else {
-		err := splitFile(count, buffer, filename, filenamePrefix)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
+		err = splitFile(count, buffer, filename, filenamePrefix)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
 }
