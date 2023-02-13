@@ -190,7 +190,8 @@ func main() {
 	}
 
 	if count == 0 {
-		fmt.Println("count is required")
+		fmt.Fprintln(os.Stderr, "count is required")
+		flag.Usage()
 		os.Exit(1)
 	}
 
@@ -205,13 +206,13 @@ func main() {
 	if parallel {
 		err := splitParallel(count, goroutine, buffer, filename, filenamePrefix, context.Background())
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 	} else {
 		err := split(count, buffer, filename, filenamePrefix)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
 	}
