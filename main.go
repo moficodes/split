@@ -89,8 +89,7 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 				file.Write(buf[:n])
 				buf = make([]byte, bufferSize)
 			}
-			file.Close()
-			continue
+			return file.Close()
 		}
 
 		readSoFar := 0
@@ -103,7 +102,9 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 			readSoFar += n
 			buf = make([]byte, bufferSize)
 		}
-		file.Close()
+		if err = file.Close(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -174,9 +175,7 @@ func splitParallel(ctx context.Context, count, goroutine, buffer int, f io.ReadS
 			}
 
 			source.Close()
-			destination.Close()
-			return nil
-
+			return destination.Close()
 		})
 	}
 	return errs.Wait()
