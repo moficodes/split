@@ -34,7 +34,7 @@ func init() {
 	flag.BoolVar(&parallel, "parallel", false, "split the file in parallel (default false)")
 }
 
-func split(count, buffer int, filename, filenamePrefix string) error {
+func splitFile(count, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -46,6 +46,10 @@ func split(count, buffer int, filename, filenamePrefix string) error {
 		return err
 	}
 	fileSize := fi.Size()
+	return split(count, buffer, f, fileSize, filenamePrefix)
+}
+
+func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
 	// each line is 17 bytes
 	// so we can calculate the number of lines per chunk
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
@@ -210,7 +214,7 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		err := split(count, buffer, filename, filenamePrefix)
+		err := splitFile(count, buffer, filename, filenamePrefix)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
