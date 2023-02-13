@@ -9,19 +9,19 @@ import (
 )
 
 func TestSplitFile(t *testing.T) {
-	testSplitFileFunc(t, func(outdir string) error {
+	testSplitFileFunc(t, "testdata/input.txt", func(outdir string) error {
 		return splitFile(4, 1, "testdata/input.txt", filepath.Join(outdir, "input"))
 	})
 }
 
 func TestSplitFileParallel(t *testing.T) {
-	testSplitFileFunc(t, func(outdir string) error {
+	testSplitFileFunc(t, "testdata/input.txt", func(outdir string) error {
 		return splitFileParallel(context.Background(), 4, 6, 1, "testdata/input.txt", filepath.Join(outdir, "input"))
 	})
 }
 
 // testSplitFileFunc is used to test both splitFile and splitFileParallel
-func testSplitFileFunc(t *testing.T, split func(string) error) {
+func testSplitFileFunc(t testing.TB, filename string, split func(string) error) {
 	outdir, err := os.MkdirTemp("", "")
 	if err != nil {
 		t.Fatalf("creating temp dir: %v", err)
@@ -51,7 +51,7 @@ func testSplitFileFunc(t *testing.T, split func(string) error) {
 	}
 
 	// Compare with original input
-	in, err := os.ReadFile("testdata/input.txt")
+	in, err := os.ReadFile(filename)
 	if err != nil {
 		t.Fatal(err)
 	}
