@@ -109,7 +109,7 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 	return nil
 }
 
-func splitParallel(ctx context.Context, count, goroutine, buffer int, filename, filenamePrefix string) error {
+func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filename, filenamePrefix string) error {
 	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
 	if err != nil {
 		return err
@@ -121,6 +121,10 @@ func splitParallel(ctx context.Context, count, goroutine, buffer int, filename, 
 		return err
 	}
 	fileSize := fi.Size()
+	return splitParallel(ctx, count, goroutine, buffer, f, fileSize, filenamePrefix)
+}
+
+func splitParallel(ctx context.Context, count, goroutine, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
 	// see logic in split function
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	chunkSize := linesPerChunk * linelength
@@ -206,7 +210,7 @@ func main() {
 
 	var err error
 	if parallel {
-		err = splitParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
+		err = splitFileParallel(context.Background(), count, goroutine, buffer, filename, filenamePrefix)
 	} else {
 		err = splitFile(count, buffer, filename, filenamePrefix)
 	}
