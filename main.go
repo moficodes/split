@@ -123,10 +123,7 @@ func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filena
 		return err
 	}
 	fileSize := fi.Size()
-	return splitParallel(ctx, count, goroutine, buffer, f, fileSize, filenamePrefix)
-}
 
-func splitParallel(ctx context.Context, count, goroutine, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix string) error {
 	// see logic in split function
 	linesPerChunk := int((fileSize / int64(linelength)) / int64(count))
 	chunkSize := linesPerChunk * linelength
