@@ -89,20 +89,20 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 				file.Write(buf[:n])
 				buf = make([]byte, bufferSize)
 			}
-		} else {
-			readSoFar := 0
-
-			for readSoFar < int(chunkSize) {
-				n, err := f.Read(buf)
-				if err != nil {
-					return err
-				}
-				file.Write(buf[:n])
-				readSoFar += n
-				buf = make([]byte, bufferSize)
-			}
+			file.Close()
+			continue
 		}
 
+		readSoFar := 0
+		for readSoFar < int(chunkSize) {
+			n, err := f.Read(buf)
+			if err != nil {
+				return err
+			}
+			file.Write(buf[:n])
+			readSoFar += n
+			buf = make([]byte, bufferSize)
+		}
 		file.Close()
 	}
 
