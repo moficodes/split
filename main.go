@@ -70,7 +70,10 @@ func split(count, bufferMB int, f io.ReadSeeker, fileSize int64, filenamePrefix 
 	chunkSize := linesPerChunk * linelength
 
 	for i := 0; i < count; i++ {
-		f.Seek(int64(chunkSize*i), 0)
+		_, err := f.Seek(int64(chunkSize*i), 0)
+		if err != nil {
+			return err
+		}
 		file, err := os.OpenFile(fmt.Sprintf("%s_%04d.txt", filenamePrefix, i+1), os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
 			return err
@@ -121,7 +124,10 @@ func splitFileParallel(ctx context.Context, count, goroutine, bufferMB int, file
 				return nil
 			}
 			// TODO use bufio to take "bufferMB" into account
-			source.Seek(int64(chunkSize*i), 0)
+			_, err = source.Seek(int64(chunkSize*i), 0)
+			if err != nil {
+				return err
+			}
 
 			if i == count-1 {
 				// Write everything we have left
