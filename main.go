@@ -32,6 +32,7 @@ func init() {
 	flag.IntVar(&buffer, "buffer", 1, "buffer size in MB")
 	flag.IntVar(&linelength, "linelength", 17, "length of each line (length of each number + 1 for newline)")
 	flag.BoolVar(&parallel, "parallel", false, "split the file in parallel (default false)")
+	flag.IntVar(&goroutine, "goroutine", runtime.GOMAXPROCS(-1), "number of concurrent workers")
 }
 
 func splitFile(count, buffer int, filename, filenamePrefix string) error {
@@ -189,18 +190,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	if goroutine > count {
-		goroutine = count
-	}
-
 	if count == 0 {
 		fmt.Fprintln(os.Stderr, "count is required")
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	if goroutine == 0 {
-		goroutine = runtime.GOMAXPROCS(-1)
+	if goroutine > count {
+		goroutine = count
 	}
 
 	filenamePrefix := strings.Split(filename, ".")[0]
