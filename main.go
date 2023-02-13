@@ -111,7 +111,8 @@ func split(count, buffer int, f io.ReadSeeker, fileSize int64, filenamePrefix st
 }
 
 func splitFileParallel(ctx context.Context, count, goroutine, buffer int, filename, filenamePrefix string) error {
-	f, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+	fmt.Println("Opening input file", filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
@@ -138,7 +139,7 @@ func splitParallel(ctx context.Context, count, goroutine, buffer int, f io.ReadS
 	for i := 0; i < count; i++ {
 		i := i
 		errs.Go(func() error {
-			source, err := os.OpenFile(filename, os.O_RDONLY, 0644)
+			source, err := os.Open(filename)
 			if err != nil {
 				return err
 			}
