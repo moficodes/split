@@ -32,7 +32,6 @@ func init() {
 	flag.IntVar(&buffer, "buffer", 1, "buffer size in MB")
 	flag.IntVar(&linelength, "linelength", 17, "length of each line (length of each number + 1 for newline)")
 	flag.BoolVar(&parallel, "parallel", false, "split the file in parallel (default false)")
-	flag.Parse()
 }
 
 func split(count, buffer int, filename, filenamePrefix string) error {
@@ -179,6 +178,8 @@ func duration(msg string, start time.Time) {
 }
 
 func main() {
+	flag.Parse()
+
 	if version {
 		fmt.Println(ver)
 		os.Exit(0)
